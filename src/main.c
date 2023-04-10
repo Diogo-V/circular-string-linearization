@@ -130,7 +130,46 @@ void free_program_memory() {
 }
 
 
+void traverse_tree(Node p, int n, char* T) {
+    // If p is NULL, return
+    if (p == NULL) {
+        return;
+    }
+    // If string depth of p is equal to n, print the string found
+    if (p->depth == n) {
+        printf("%.*s\n", n, &T[p->head]);
+        return;
+    }
+    // Initialize the smallest child to NULL and the smallest character to '~' (larger than any character)
+    Node smallestChild = NULL;
+    char smallestChar = '~';
+    // Traverse all children of p
+    for (Node child = p->child; child != NULL; child = child->brother) {
+        // If the first character of the label of the child is smaller than smallestChar, update smallestChar and smallestChild
+        if (T[child->head] < smallestChar) {
+            smallestChar = T[child->head];
+            smallestChild = child;
+        }
+    }
+    // Recursively traverse the subtree rooted at the smallest child
+    traverse_tree(smallestChild, n, T);
+}
+
+
+
+
+void print_final() {
+  int i = 0;
+  printf("Final version\n");
+  while(i < n_tree_nodes) {
+    show_node(&(nodes[i]));
+    i++;
+  }
+}
+
+
 /* ######################### Suffix Tree Algorithm ########################## */
+
 
 /*
 The DescendQ function checks if it is possible to descend from a given point p to 
@@ -140,18 +179,22 @@ that starts with c, and 0 otherwise. If p is the root, it returns 1, since any
 character can be the first character of a string in the tree.
 */
 int DescendQ(struct point* p, char c) {
-    if (p->above == NULL) { // special case for root
-        return 1;
+
+  if (p->above == NULL) { // special case for root
+    return 1;
+  }
+
+  struct node* u = p->below;
+  int i = u->head;
+
+  while (i < n_nodes && i <= u->head + u->depth) {
+    if (string[i] == c) {
+      return 1;
     }
-    struct node* u = p->below;
-    int i = u->head;
-    while (i < n_nodes && i <= u->head + u->depth) {
-        if (string[i] == c) {
-            return 1;
-        }
-        i++;
-    }
-    return 0;
+    i++;
+  }
+
+  return 0;
 }
 
 /*
@@ -165,26 +208,34 @@ leaf node, the function updates the last visited node to p->b, so that the Suffi
 function can set the suffix link of the current node later.
 */
 void Descend(struct point* p, char c) {
-    if (p->above == NULL) { // special case for root
-        p->below = nodes[0].child;
-        p->depth = 0;
-    } else {
-        struct node* u = p->below;
-        int i = u->head;
-        while (i < n_nodes && i <= u->head + u->depth) {
-            if (string[i] == c) {
-                p->depth++;
-                return;
-            }
-            i++;
-        }
-        p->below = u->brother;
-        p->depth = u->depth + 1;
+  if (p->above == NULL) { // special case for root
+
+    p->below = nodes[0].child;
+    p->depth = 0;
+
+  } else {
+
+    struct node* u = p->below;
+    int i = u->head;
+
+    while (i < n_nodes && i <= u->head + u->depth) {
+      if (string[i] == c) {
+        p->depth++;
+        return;
+      }
+      i++;
     }
-    while (p->below != NULL && p->below->head + p->depth >= n_nodes) {
-        p->below = p->below->suffix_link;
-        p->depth = p->below->depth;
-    }
+
+    p->below = u->brother;
+    p->depth = u->depth + 1;
+
+  }
+
+  while (p->below != NULL && p->below->head + p->depth >= n_nodes) {
+    p->below = p->below->suffix_link;
+    p->depth = p->below->depth;
+  }
+
 }
 
 
@@ -337,6 +388,12 @@ int main() {
 
   /* Applies ukkonen's algorithm to find the suffix tree */
   ukkonen_algorithm();
+
+  /* Traverses all nodes and outputs final string */
+  traverse_tree(nodes, n_nodes, string);
+
+  /* Prints all node's final state */
+  print_final();
 
   /* Cleans up the program by freeing all the allocated memory */
   free_program_memory();
