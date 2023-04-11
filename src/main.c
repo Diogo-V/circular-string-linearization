@@ -1,5 +1,6 @@
 #include "stdlib.h"
 #include "stdio.h"
+#include "string.h"
 
 
 /* ################################ Globals ################################ */
@@ -178,17 +179,17 @@ a character c as input and returns 1 if there is a child node of p with a label
 that starts with c, and 0 otherwise. If p is the root, it returns 1, since any 
 character can be the first character of a string in the tree.
 */
-int DescendQ(struct point* p, char c) {
+int DescendQ(Point point, char string_char) {
 
-  if (p->above == NULL) { // special case for root
+  if (point->above == &nodes[1]) { // special case for root
     return 1;
   }
 
-  struct node* u = p->below;
+  Node u = point->below;
   int i = u->head;
 
   while (i < n_nodes && i <= u->head + u->depth) {
-    if (string[i] == c) {
+    if (string[i] == string_char) {
       return 1;
     }
     i++;
@@ -196,6 +197,12 @@ int DescendQ(struct point* p, char c) {
 
   return 0;
 }
+
+// Chamo SuffixLink na raiz vai para sentinela
+// Suffix link da raiz é a sentinela
+// O point tem o above e o below igual ao nó em que estou
+// Quando chamo o AddLeaf, se for a criar um nó interno, coloco o suffix do last a apontar para o novo nó e depois mudo o last para o novo nó criado
+// AddLeaf adds at most 2 nodes
 
 /*
 The Descend function descends from a given point p to a child 
@@ -207,7 +214,7 @@ is no next sibling node, p is updated to point to NULL. If the new node is not a
 leaf node, the function updates the last visited node to p->b, so that the SuffixLink 
 function can set the suffix link of the current node later.
 */
-void Descend(struct point* p, char c) {
+void Descend(Point p, char c) {
   if (p->above == NULL) { // special case for root
 
     p->below = nodes[0].child;
@@ -215,7 +222,7 @@ void Descend(struct point* p, char c) {
 
   } else {
 
-    struct node* u = p->below;
+    Node u = p->below;
     int i = u->head;
 
     while (i < n_nodes && i <= u->head + u->depth) {
@@ -255,24 +262,31 @@ sets the suffix link of the new node to the root, updates the hook of the new no
 and adds the new node to the linked list of siblings of the original node u. The 
 function returns 1 to indicate that a new node was added to the tree.
 */
-int AddLeaf(Point p, Node root, int i) {
+int AddLeaf(Point p, Node string_idx_node, int string_idx) {
   int a = 0; // number of nodes added
+
   Node r = p->above;
   int j = p->depth + 1;
+
   Node s = NULL; // new internal node to be created (if necessary)
   Node t = NULL; // new leaf to be created
+
   while(j <= p->below->depth) {
+
     // find the edge to descend on
     Node q = r->child;
     while(string[q->head] != string[j]) {
       q = q->brother;
     }
+
     int k = q->head;
+
     // if T[k+1]...T[q->sdep] is a prefix of T[i+1]...T[n]
     if(j + q->depth - k <= p->below->depth) {
       r = q;
       j = q->depth;
     } else {
+
       // split the edge and create a new internal node
       Node u = (Node) calloc(1, sizeof(struct node));
       a++;
@@ -281,7 +295,7 @@ int AddLeaf(Point p, Node root, int i) {
       u->child = q;
       u->brother = r->child;
       u->suffix_link = NULL;
-      u->hook = &root;
+      u->hook = &string_idx_node;
       r->child = u;
       r = u;
       j = u->depth;
@@ -289,6 +303,9 @@ int AddLeaf(Point p, Node root, int i) {
         s->suffix_link = u;
       }
       s = u;
+
+      printf("Internal ");
+      show_node(s);
     }
   }
   // create a new leaf node
@@ -297,12 +314,12 @@ int AddLeaf(Point p, Node root, int i) {
   }
   t = (Node) calloc(1, sizeof(struct node));
   a++;
-  t->head = i;
+  t->head = string_idx;
   t->depth = n_nodes;
   t->child = NULL;
   t->brother = r->child;
   t->suffix_link = NULL;
-  t->hook = &root;
+  t->hook = &string_idx_node;
   r->child = t;
   printf("Leaf ");
   show_node(t);
@@ -313,39 +330,51 @@ int AddLeaf(Point p, Node root, int i) {
 /**
  * Updates the suffix link of the last visited node.
  */
-void SuffixLink(struct point* p) {
+void SuffixLink(Point p) {
   if (last != NULL) {
     last->suffix_link = p->above;
   }
 
   last = p->above;
+
+  // Tenho de dar update ao pointer aqui para ir para o suffix link
+  // Escolho o suffix link do ultimo criado
+  // Depois tenho de fazer um loop a descer comparando apenas as primeiras letras das edges
+  // este truque é o skip count trick
+  // para o fazer, tenho de usar o T[head do nó atual + string depth do nó anterior]
 }
 
+/**
+ * @brief Runs the Ukkonen's Algorithm and builds a suffix tree.
+ */
 void ukkonen_algorithm() {
   
-  int i = 0;
-  Point p = (Point) malloc(sizeof(struct point)); // create a new point
+  int string_idx = 0;
+  Point point = (Point) calloc(1, sizeof(struct point)); // create a new point
 
-  p->above = NULL;
-  p->below = nodes[0].child;
-  p->depth = 0;
-  
-  while(i <= 2 * n_nodes) {
+  /* Builds initial point */
+  point->above = &nodes[0];
+  point->below = &nodes[0];
+  point->depth = 0;
 
-      char c = (i < n_nodes) ? string[i] : '$'; // get the next character or the end symbol $
-      printf("Letter %c\n", c);
+  /* Loops over all characters in the duplicated string */
+  while(string_idx <= 2 * n_nodes) {
 
-      // Check if there is a child node that matches the current character
-      while(!DescendQ(p, c)) {
-        n_tree_nodes += AddLeaf(p, &(nodes[n_tree_nodes]), i);
-        SuffixLink(p);
-      }
+    printf("Letter %c\n", '\0' == string[string_idx] ? '$' : string[string_idx]);
 
-      // Move down the tree to the child node that matches the current character
-      Descend(p, c);
+    // Check if there is a child node that matches the current character
+    while(!DescendQ(point, string[string_idx])) {
+      n_tree_nodes += AddLeaf(point, &(nodes[n_tree_nodes]), string_idx);
+      SuffixLink(point);
+    }
 
-      i++;
+    // Move down the tree to the child node that matches the current character
+    Descend(point, string[string_idx]);
+
+    string_idx++;
   }
+
+  free(point);
 }
 
 
@@ -359,20 +388,25 @@ void init_nodes() {
   /* Used as parameters in getline to store input and size of input */ 
   size_t len = 0;
   char* input = NULL;
+  char* tmp = NULL;
 
   /* Reads size of dna string and the dna sequence */
   getline(&input, &len, stdin);
 
   /* Allocates memory for the string */
   sscanf(input, "%d %*s", &n_nodes);
-  string = (char*) calloc(n_nodes + 1, sizeof(char));
+  tmp = (char*) calloc(n_nodes + 1, sizeof(char));
+  string = (char*) calloc(2 * n_nodes + 1, sizeof(char));
 
   /* Stores dna sequence in the string */
-  sscanf(input, "%*d %s", string);
+  sscanf(input, "%*d %s", tmp);
+  strcat(string, tmp);
+  strcat(string, tmp);
 
   /* Allocates necessary memory for the suffix trees nodes */
   nodes = (Node) calloc(2 * ((2 * n_nodes) + 1), sizeof(struct node));
 
+  free(tmp);
   free(input);
 }
 
