@@ -178,9 +178,13 @@ int DescendQ(Point point, char string_char) {
         return 1;
     }
 
+    if (point->above != point->below) {
+        return string[point->below->head + point->depth] == string_char;
+    }
+
     Node n = point->below->child;
     while (n != NULL) {
-        if (string[n->head] == string_char) {
+        if (string[n->head + point->above->depth] == string_char) {
             return 1;
         }
         n = n->brother;
@@ -217,12 +221,27 @@ void Descend(Point p, char c) {
 
     }
 
+    // FIXME: Quando o above e o below do point são diferentes, tenho de verificar se posso descer
+    if (p->above != p->below) {  // TODO: refactor this
+        if (string[p->below->head + p->depth] == c) {
+            p->depth++;
+
+            if (p->depth == p->below->depth) {  // Passei a estar no nó
+                p->above = p->below;
+            }
+
+        }  // Head do de baixo + depth do de cima
+    }
+
     // Finds branch to descend at
     Node n = p->below->child;
     while (n != NULL) {
-        if (string[n->head] == c) {
+        if (string[n->head + p->above->depth] == c) {  // Head do de baixo + depth do de cima
             p->depth++;
             p->below = n;
+            if (p->depth == p->below->depth) {
+                p->above = p->below;
+            }
             return;
         }
         n = n->brother;
@@ -257,51 +276,91 @@ int AddLeaf(Point p, Node string_idx_node, int string_idx) {
     int next_node = 2 + n_tree_nodes;
 
     Node parent = p->above;
-    int new_depth = p->depth + 1;
+    int depth = p->depth;
 
-    while(new_depth <= p->below->depth) {  // Internal nodes
+    // If the pointer is not at a leaf, then we need to add an internal node
+    if (p->depth + 1 <= p->below->depth) {
 
-        // find the edge to descend on
-        Node q = parent->child;
-        while(string[q->head] != string[new_depth]) {
-            q = q->brother;
+        // split the edge and create n_nodes_added new internal node
+        n_nodes_added++;
+
+        nodes[next_node].head = p->below->head;
+        // nodes[next_node].depth = depth + q->depth - k;
+        nodes[next_node].depth = depth;
+        nodes[next_node].child = p->below;
+        nodes[next_node].brother = p->below->brother;
+
+        if (p->below->brother != NULL) {
+            p->below->brother->hook = &nodes[next_node].brother;
         }
 
-        int k = q->head;
+        nodes[next_node].suffix_link = NULL;  // Suffix links is parent node
+        nodes[next_node].hook = p->below->hook;
 
-        // if T[k+1]...T[q->sdep] is n_nodes_added prefix of T[i+1]...T[n]
-        if(new_depth + q->depth - k <= p->below->depth) {
-            parent = q;
-            new_depth = q->depth;
-        } else {
+        *nodes[next_node].hook = &nodes[next_node];
 
-            // split the edge and create n_nodes_added new internal node
-            n_nodes_added++;
+        p->below->brother = NULL;  // Passa a ser leaf
 
-            nodes[next_node].head = k;
-            // nodes[next_node].depth = new_depth + q->depth - k;
-            nodes[next_node].depth = p->depth;
-            nodes[next_node].child = q;
-            nodes[next_node].brother = parent->child;
-            nodes[next_node].suffix_link = NULL;  // Suffix links is parent node
-            nodes[next_node].hook = &string_idx_node;
+        parent->child = &nodes[next_node];
 
-            parent->child = &nodes[next_node];
+        // FIXME: Acho que não estou a colocar bem os nós brother e child
 
-            parent = &nodes[next_node];
-            new_depth = nodes[next_node].depth;
-
-            /* Updates last's suffix to the newly created internal node */
-            if (last != NULL) {
-                last->suffix_link = &nodes[next_node];
-            }
-            last = &nodes[next_node];
-
-            n_nodes_added++;
-            printf("Internal ");
-            show_node(&nodes[2 + n_tree_nodes + n_nodes_added]);
+        /* Updates last's suffix to the newly created internal node */
+        if (last != NULL) {
+            last->suffix_link = &nodes[next_node];
         }
+        last = &nodes[next_node];
+
+        printf("Internal ");
+        show_node(&nodes[2 + n_tree_nodes]);
+
+        parent = last;
+
     }
+
+//    while(depth <= p->below->depth) {  // Internal nodes
+//
+//        // find the edge to descend on
+//        Node q = parent->child;
+//        while(string[q->head] != string[depth]) {
+//            q = q->brother;
+//        }
+//
+//        int k = q->head;
+//
+//        // if T[k+1]...T[q->sdep] is n_nodes_added prefix of T[i+1]...T[n]
+//        if(depth + q->depth - k <= p->below->depth) {
+//            parent = q;
+//            depth = q->depth;
+//        } else {
+//
+//            // split the edge and create n_nodes_added new internal node
+//            n_nodes_added++;
+//
+//            nodes[next_node].head = k;
+//            // nodes[next_node].depth = depth + q->depth - k;
+//            nodes[next_node].depth = p->depth;
+//            nodes[next_node].child = q;
+//            nodes[next_node].brother = parent->child;
+//            nodes[next_node].suffix_link = NULL;  // Suffix links is parent node
+//            nodes[next_node].hook = &string_idx_node;
+//
+//            parent->child = &nodes[next_node];
+//
+//            parent = &nodes[next_node];
+//            depth = nodes[next_node].depth;
+//
+//            /* Updates last's suffix to the newly created internal node */
+//            if (last != NULL) {
+//                last->suffix_link = &nodes[next_node];
+//            }
+//            last = &nodes[next_node];
+//
+//            n_nodes_added++;
+//            printf("Internal ");
+//            show_node(&nodes[2 + n_tree_nodes + n_nodes_added]);
+//        }
+//    }
 
     // create n_nodes_added new leaf node
     // if(s != NULL) {
@@ -310,16 +369,18 @@ int AddLeaf(Point p, Node string_idx_node, int string_idx) {
 
     next_node = next_node + n_nodes_added;
 
-    nodes[next_node].head = string_idx;
-    // nodes[next_node].depth = n_nodes
-    nodes[next_node].depth = n_nodes * 2 + 1 - string_idx;
+    nodes[next_node].head = string_idx - p->depth;
+    nodes[next_node].depth = n_nodes * 2 + 1 - nodes[next_node].head;
     nodes[next_node].child = NULL;
     nodes[next_node].brother = parent->child;
     nodes[next_node].suffix_link = NULL;
-    nodes[next_node].hook = &string_idx_node;
+
+    nodes[next_node].hook = &parent->child;
+
     n_nodes_added++;
 
     parent->child = &nodes[next_node];
+
     printf("Leaf ");
     show_node(&nodes[next_node]);
     return n_nodes_added;
@@ -351,6 +412,8 @@ void SuffixLink(Point p) {
     /* If p->above is not the root, move down the tree to the first child of p->above that matches the first character of the edge from p->above to p->below */
     if (p->above != &nodes[0]) {
         Descend(p, string[p->below->head]);
+        // p->above = p->below;
+        // p->depth = p->below->depth;
     }
 }
 
