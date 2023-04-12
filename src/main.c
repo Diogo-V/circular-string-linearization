@@ -172,31 +172,34 @@ void print_final() {
 /* ######################### Suffix Tree Algorithm ########################## */
 
 
-/*
-The DescendQ function checks if it is possible to descend from a given point p to
-a child node with a given character c. It takes a pointer to a struct point p and
-a character c as input and returns 1 if there is a child node of p with a label
-that starts with c, and 0 otherwise. If p is the root, it returns 1, since any
-character can be the first character of a string in the tree.
-*/
 int DescendQ(Point point, char string_char) {
 
-/*    if (point->above == &nodes[0]) { // special case for root
+    if (point->above == &nodes[1]) { // special case for sentinel
         return 1;
-    }*/
+    }
 
-    Node u = point->below;
-    int i = u->head;
-
-    while (i < n_tree_nodes && i <= u->head + u->depth) {
-        if (string[i] == string_char) {
+    Node n = point->below->child;
+    while (n != NULL) {
+        if (string[n->head] == string_char) {
             return 1;
         }
-        i++;
+        n = n->brother;
     }
+
+//    Node below = point->below;
+//    int below_head = below->head;
+//
+//    while (below_head < n_tree_nodes && below_head <= below->head + below->depth) {
+//        if (string[below_head] == string_char) {
+//            return 1;
+//        }
+//        below_head++;
+//    }
 
     return 0;
 }
+
+// Quando faço descend no SuffixLink, vou ter de corrigir o point.depth com o nó depth e a apontar para o nó de baixo
 
 // Chamo SuffixLink na raiz vai para sentinela
 // Suffix link da raiz é a sentinela
@@ -204,67 +207,54 @@ int DescendQ(Point point, char string_char) {
 // Quando chamo o AddLeaf, se for a criar um nó interno, coloco o suffix do last a apontar para o novo nó e depois mudo o last para o novo nó criado
 // AddLeaf adds at most 2 nodes
 
-/*
-The Descend function descends from a given point p to a child
-node with a given character c. It takes a pointer to a struct point p and a
-character c as input and updates p to point to the child node that has a
-label starting with c. If there is no such child node, p is updated to point
-to the next sibling node, and the string depth is updated accordingly. If there
-is no next sibling node, p is updated to point to NULL. If the new node is not a
-leaf node, the function updates the last visited node to p->b, so that the SuffixLink
-function can set the suffix link of the current node later.
-*/
 void Descend(Point p, char c) {
-    if (p->above == &nodes[0]) { // special case for root
+    if (p->above == &nodes[1]) { // special case for sentinel
 
-        p->below = nodes[0].child;
+        p->below = &nodes[0];
+        p->above = &nodes[0];
         p->depth = 0;
+        return;
 
-    } else {
+    }
 
-        Node u = p->below;
-        int i = u->head;
-
-        while (i < n_nodes && i <= u->head + u->depth) {
-            if (string[i] == c) {
-                p->depth++;
-                return;
-            }
-            i++;
+    // Finds branch to descend at
+    Node n = p->below->child;
+    while (n != NULL) {
+        if (string[n->head] == c) {
+            p->depth++;
+            p->below = n;
+            return;
         }
-
-        p->below = u->brother;
-        p->depth = u->depth + 1;
-
+        n = n->brother;
     }
 
-    while (p->below != NULL && p->below->head + p->depth >= n_nodes) {
-        p->below = p->below->suffix_link;
-        p->depth = p->below->depth;
-    }
+//    Node u = p->below;
+//    int i = u->head;
+//
+//    while (i < n_nodes && i <= u->head + u->depth) {
+//        if (string[i] == c) {
+//            p->depth++;
+//            return;
+//        }
+//        i++;
+//    }
+//
+//    p->below = u->brother;
+//    p->depth = u->depth + 1;
+//
+//    while (p->below != NULL && p->below->head + p->depth >= n_nodes) {
+//        p->below = p->below->suffix_link;
+//        p->depth = p->below->depth;
+//    }
 
 }
 
+// Se uma leaf for adicionada, não interessa. Apenas nós internos são relevantes
 
-/*
-The AddLeaf function adds a new leaf node to the tree. It takes a pointer to
-a struct point p, a double pointer to a struct node h (which keeps track of the
-last node that was added to the tree), and an integer i (which is the index of
-the first character of the suffix to add to the tree). The function starts at the
-node pointed to by p->b and compares the characters in the label of that node with
-the characters in the suffix starting at index i in the input string T. If the
-characters match up to the end of the label of the node, the suffix is already in
-the tree and the function returns 0. Otherwise, the function creates a new node v
-with a label starting at index i and a string depth of n - i, where n is the length
-of the input string. The function updates the last visited node to the sibling of u,
-which will be the next node visited when adding the next suffix. Finally, the function
-sets the suffix link of the new node to the root, updates the hook of the new node to h,
-and adds the new node to the linked list of siblings of the original node u. The
-function returns 1 to indicate that a new node was added to the tree.
-*/
+
 int AddLeaf(Point p, Node string_idx_node, int string_idx) {
     int n_nodes_added = 0; // number of nodes added
-    int next_node = 2 + n_tree_nodes + n_nodes_added;
+    int next_node = 2 + n_tree_nodes;
 
     Node parent = p->above;
     int new_depth = p->depth + 1;
@@ -290,10 +280,10 @@ int AddLeaf(Point p, Node string_idx_node, int string_idx) {
 
             nodes[next_node].head = k;
             // nodes[next_node].depth = new_depth + q->depth - k;
-            nodes[next_node].depth = n_nodes * 2 + 1 - n_tree_nodes - n_nodes_added;
+            nodes[next_node].depth = p->depth;
             nodes[next_node].child = q;
             nodes[next_node].brother = parent->child;
-            nodes[next_node].suffix_link = parent;  // Suffix links is parent node
+            nodes[next_node].suffix_link = NULL;  // Suffix links is parent node
             nodes[next_node].hook = &string_idx_node;
 
             parent->child = &nodes[next_node];
@@ -302,7 +292,9 @@ int AddLeaf(Point p, Node string_idx_node, int string_idx) {
             new_depth = nodes[next_node].depth;
 
             /* Updates last's suffix to the newly created internal node */
-            last->suffix_link = &nodes[next_node];
+            if (last != NULL) {
+                last->suffix_link = &nodes[next_node];
+            }
             last = &nodes[next_node];
 
             n_nodes_added++;
@@ -320,7 +312,7 @@ int AddLeaf(Point p, Node string_idx_node, int string_idx) {
 
     nodes[next_node].head = string_idx;
     // nodes[next_node].depth = n_nodes
-    nodes[next_node].depth = n_nodes * 2 + 1 - n_tree_nodes - n_nodes_added;
+    nodes[next_node].depth = n_nodes * 2 + 1 - string_idx;
     nodes[next_node].child = NULL;
     nodes[next_node].brother = parent->child;
     nodes[next_node].suffix_link = NULL;
@@ -333,22 +325,33 @@ int AddLeaf(Point p, Node string_idx_node, int string_idx) {
     return n_nodes_added;
 }
 
-
 /**
  * Updates the suffix link of the last visited node.
  */
 void SuffixLink(Point p) {
-    if (last != NULL) {
-        last->suffix_link = p->above;
-    }
 
+    /* Update last_internal_node to be the current node p->above */
     last = p->above;
 
-    // Tenho de dar update ao pointer aqui para ir para o suffix link
-    // Escolho o suffix link do ultimo criado
-    // Depois tenho de fazer um loop a descer comparando apenas as primeiras letras das edges
-    // este truque é o skip count trick
-    // para o fazer, tenho de usar o T[head do nó atual + string depth do nó anterior]
+    /* If last_internal_node is the root node, put point in sentinel and return */
+    if (last == &nodes[0]) {
+        p->above = &nodes[1];
+        p->below = &nodes[1];
+        return;
+    }
+
+    /* Move up one level in the tree */
+    p->above = last->suffix_link;
+
+    /* Continue moving up the tree while p->above is not the root and the edge from p->above to p->below is a leaf edge */
+    while (p->above != &nodes[0] && p->above->child == NULL) {
+        p->above = p->above->suffix_link;
+    }
+
+    /* If p->above is not the root, move down the tree to the first child of p->above that matches the first character of the edge from p->above to p->below */
+    if (p->above != &nodes[0]) {
+        Descend(p, string[p->below->head]);
+    }
 }
 
 /**
@@ -372,7 +375,7 @@ void ukkonen_algorithm() {
         // Check if there is a child node that matches the current character
         while(!DescendQ(point, string[string_idx])) {
             n_tree_nodes += AddLeaf(point, &(nodes[n_tree_nodes]), string_idx);
-            SuffixLink(point);
+            SuffixLink(point);  // Vai-me colocar na sentinela e depois o Descend coloca-me na root
         }
 
         // Move down the tree to the child node that matches the current character
@@ -434,10 +437,10 @@ int main() {
     ukkonen_algorithm();
 
     /* Traverses all nodes and outputs final string */
-    traverse_tree(nodes, n_nodes, string);
+    // traverse_tree(nodes, n_nodes, string);
 
     /* Prints all node's final state */
-    print_final();
+    // print_final();
 
     /* Cleans up the program by freeing all the allocated memory */
     free_program_memory();
