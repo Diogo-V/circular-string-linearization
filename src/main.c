@@ -1,6 +1,6 @@
-#include "stdlib.h"
-#include "stdio.h"
-#include "string.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 
 /* ################################ Globals ################################ */
@@ -66,7 +66,7 @@ Node nodes = NULL;
 /**
  * @brief Number of nodes in suffix tree.
  */
-int n_tree_nodes = 0;
+int n_tree_nodes = 2;
 
 /**
  * @brief Global variable to keep track of the last visited node.
@@ -242,63 +242,60 @@ void Descend(Point p, char c) {
 
 int AddLeaf(Point p, Node string_idx_node, int string_idx) {
     int n_nodes_added = 0;
-    int next_node = 2 + n_tree_nodes;
 
     Node parent = p->above;
     int depth = p->depth;
 
     /* If the pointer is not at a leaf, then we need to add an internal node */
-    if (p->depth + 1 <= p->below->depth) {
+    if (p->above != p->below) {
 
         /* Split the edge and create n_nodes_added new internal node */
         n_nodes_added++;
 
-        nodes[next_node].head = p->below->head;
-        nodes[next_node].depth = depth;
-        nodes[next_node].child = p->below;
-        nodes[next_node].brother = p->below->brother;
+        string_idx_node->head = p->below->head;
+        string_idx_node->depth = depth;
+        string_idx_node->child = p->below;
+        string_idx_node->brother = p->below->brother;
 
         if (p->below->brother != NULL) {
-            p->below->brother->hook = &nodes[next_node].brother;
+            p->below->brother->hook = &string_idx_node->brother;
         }
 
-        nodes[next_node].suffix_link = NULL;  /* Suffix links is parent node */
-        nodes[next_node].hook = p->below->hook;
+        string_idx_node->suffix_link = NULL;  /* Suffix links is parent node */
 
-        *nodes[next_node].hook = &nodes[next_node];
+        string_idx_node->hook = p->below->hook;
+        *string_idx_node->hook = string_idx_node;
 
         p->below->brother = NULL;  /* Passa a ser leaf */
 
         /* Updates last's suffix to the newly created internal node */
         if (last != NULL) {
-            last->suffix_link = &nodes[next_node];
+            last->suffix_link = string_idx_node;
         }
-        last = &nodes[next_node];
+        last = string_idx_node;
 
         printf("Internal ");
-        show_node(&nodes[2 + n_tree_nodes]);
+        show_node(string_idx_node);
 
         parent = last;
-
+        
+        string_idx_node++;
     }
 
-    /* Leaf nodes */
-    next_node = next_node + n_nodes_added;
+    string_idx_node->head = string_idx - p->depth;
+    string_idx_node->depth = n_nodes * 2 + 1 - string_idx_node->head;
+    string_idx_node->child = NULL;
+    string_idx_node->brother = parent->child;
+    string_idx_node->suffix_link = NULL;
 
-    nodes[next_node].head = string_idx - p->depth;
-    nodes[next_node].depth = n_nodes * 2 + 1 - nodes[next_node].head;
-    nodes[next_node].child = NULL;
-    nodes[next_node].brother = parent->child;
-    nodes[next_node].suffix_link = NULL;
-
-    nodes[next_node].hook = &parent->child;
+    string_idx_node->hook = &parent->child;
 
     n_nodes_added++;
 
-    parent->child = &nodes[next_node];
+    parent->child = string_idx_node;
 
     printf("Leaf ");
-    show_node(&nodes[next_node]);
+    show_node(string_idx_node);
     return n_nodes_added;
 }
 
@@ -385,12 +382,14 @@ void ukkonen_algorithm() {
  */
 void init_nodes() {
     /* Used as parameters in getline to store input and size of input */
-    size_t len = 0;
+    int len = 10000;
     char* input = NULL;
     char* tmp = NULL;
 
+    input = (char*) calloc(len, sizeof(char));
+
     /* Reads size of dna string and the dna sequence */
-    getline(&input, &len, stdin);
+    fgets(input, len, stdin);
 
     /* Allocates memory for the string */
     sscanf(input, "%d %*s", &n_nodes);
